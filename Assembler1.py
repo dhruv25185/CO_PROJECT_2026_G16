@@ -200,4 +200,62 @@ def parse(instructions,labels):
   out.append(ir)
 
  return out
-
+def encode(ir):
+    #this follow the general format as listed in the readme file in the assignment 
+    m=ir["mnemonic"]
+    if ir["format"]=="R":
+        return (
+        funct7[m]+
+        binN(ir["rs2"],5)+
+        binN(ir["rs1"],5)+
+        funct3[m]+
+        binN(ir["rd"],5)+
+        opcode["R"]
+        )
+    if ir["format"]=="I":
+        op=opcode[m] if m in opcode else opcode["addi"]
+        return (
+        binN(ir["imm"],12)+
+        binN(ir["rs1"],5)+
+        funct3[m]+
+        binN(ir["rd"],5)+
+        op
+        )
+    if ir["format"]=="S":
+        imm=binN(ir["imm"],12)
+        return (
+        imm[:7]+
+        binN(ir["rs2"],5)+
+        binN(ir["rs1"],5)+
+        funct3[m]+
+        imm[7:]+
+        opcode["sw"]
+        )
+    if ir["format"]=="B":
+        imm=binN(ir["imm"],13)
+        return (
+        imm[0]+
+        imm[2:8]+
+        binN(ir["rs2"],5)+
+        binN(ir["rs1"],5)+
+        funct3[m]+
+        imm[8:12]+
+        imm[1]+
+        opcode["B"]
+        )
+    if ir["format"]=="U":
+        return (
+        binN(ir["imm"],20)+
+        binN(ir["rd"],5)+
+        opcode[m]
+        )
+    if ir["format"]=="J":
+        imm=binN(ir["imm"],21)
+        return (
+        imm[0]+
+        imm[10:20]+
+        imm[9]+
+        imm[1:9]+
+        binN(ir["rd"],5)+
+        opcode["jal"]
+        )
