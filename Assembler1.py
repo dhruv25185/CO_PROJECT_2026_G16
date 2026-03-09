@@ -48,3 +48,71 @@ funct7={
 "or":"0000000",
 "and":"0000000"
 }
+
+binN @nirney
+
+def error(message):
+    print(message)
+    sys.exit(1)
+
+def reg(reg,line_num):
+    if reg.lower() not in rt:
+        error(f"Line {line_num}: Invalid register '{reg}'")
+    return rt[reg.lower()]
+
+def imm(hex):
+    try:
+        if hex.startswith("0x"):
+            return int(hex,16)
+        if hex.startswith("0b"):
+            return int(hex,2)
+        return int(hex)
+    except:
+        error(f"Invalid immediate '{hex}'")
+
+def check_range(value,bits,line_num):
+    low=-(1<<(bits-1))
+    high=(1<<(bits-1))-1
+    if value<low or value>high:
+        error(f"Line {line_num}: Immediate {value} out of range for {bits}-bit field")
+
+def check_label(name,line_num):
+    if not name[0].isalpha():
+        error(f"Line {line_num}: Invaild label '{name}'")
+    if name in rt or name in ft:
+        error(f"Line {line_num}: Label cannot be register or instruction name")
+
+def first_pass(lines):
+
+    labels={}
+    instructions=[]
+    addr=0
+
+    for i,line in enumerate(lines):
+
+        line=line.strip()
+
+        if line=="":
+            continue
+
+        if ":" in line:
+
+            name=line[:line.index(":")].strip()
+            check_label(name,i+1)
+
+            if name in labels:
+                error(f"Line {i+1}: Duplicate label '{name}'")
+
+            labels[name]=addr
+
+            rest=line[line.index(":")+1:].strip()
+
+            if rest=="":
+                continue
+
+            line=rest
+
+        instructions.append((i+1,addr,line))
+        addr+=4
+
+    return labels,instructions
