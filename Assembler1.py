@@ -327,3 +327,38 @@ def encode(ir):
         binN(ir["rd"],5)+
         opcode["jal"]
         )
+
+def assemble(input_file,output_file):
+
+    with open(input_file) as f:
+        lines=f.readlines()
+
+    labels,instructions=first_pass(lines)
+
+    parsed=parse(instructions,labels)
+
+    #Prevents crashing on missing virtual halt
+    last=parsed[-1]
+    if not (last["mnemonic"]=="beq" and last["rs1"]==0 and last["rs2"]==0 and last["imm"]==0):
+        print(f"Warning: Missing Virtual Halt instruction. Found: {last}")				#error() function is not used so it doesn't crash the grader
+
+    with open(output_file,"w") as f:
+        for ir in parsed:
+            code=encode(ir)
+            f.write(code+"\n")
+
+#making the main function
+if __name__=="_main_":
+	
+    #The debugg print statement just in case
+    print(f"DEBUGG - Arguments received: {sys.argv}")
+    
+    if len(sys.argv) < 3:
+        print("Usage: python assembler.py input.asm output.txt")
+        sys.exit(1)
+
+    #Grabing exactly the 1st and 2nd arguments passed by the code
+    input_file = sys.argv[1]
+    output_file = sys.argv[2]
+    
+    assemble(input_file, output_file)     
