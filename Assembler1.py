@@ -1,5 +1,7 @@
 import sys
 
+#creating usefull dictionaries
+
 rt={
 "x0":0,"x1":1,"x2":2,"x3":3,"x4":4,"x5":5,"x6":6,"x7":7,
 "x8":8,"x9":9,"x10":10,"x11":11,"x12":12,"x13":13,"x14":14,"x15":15,
@@ -12,6 +14,7 @@ rt={
 "s2":18,"s3":19,"s4":20,"s5":21,"s6":22,"s7":23,"s8":24,"s9":25,"s10":26,"s11":27,
 "t3":28,"t4":29,"t5":30,"t6":31
 }
+
 ft={
 "add":"R","sub":"R","slt":"R","sltu":"R","xor":"R","sll":"R","srl":"R","or":"R","and":"R",
 "lw":"I","addi":"I","sltiu":"I","jalr":"I",
@@ -20,6 +23,9 @@ ft={
 "lui":"U","auipc":"U",
 "jal":"J"
 }
+
+
+
 opcode={
 "R":"0110011",
 "lw":"0000011",
@@ -32,13 +38,18 @@ opcode={
 "auipc":"0010111",
 "jal":"1101111"
 }
+
 funct3={
 "add":"000","sub":"000","sll":"001","slt":"010","sltu":"011",
 "xor":"100","srl":"101","or":"110","and":"111",
+
 "lw":"010","addi":"000","sltiu":"011","jalr":"000",
+
 "sw":"010",
+
 "beq":"000","bne":"001","blt":"100","bge":"101","bltu":"110","bgeu":"111"
 }
+
 funct7={
 "add":"0000000",
 "sub":"0100000",
@@ -51,14 +62,16 @@ funct7={
 "and":"0000000"
 }
 
-def bfN(value,bits):
- if value < 0:
-  value=(1<<bits)+value
- return format(value,"0{}b".format(bits))
+#defining useful functions
 
 def error(message):
     print(message)
     sys.exit(1)
+
+def binN(value,bits):
+    if value < 0:
+        value=(1<<bits)+value
+    return format(value,"0{}b".format(bits))
 
 def reg(reg,line_num):
     if reg.lower() not in rt:
@@ -86,6 +99,7 @@ def check_label(name,line_num):
         error(f"Line {line_num}: Invaild label '{name}'")
     if name in rt or name in ft:
         error(f"Line {line_num}: Label cannot be register or instruction name")
+
 
 def first_pass(lines):
 
@@ -121,156 +135,160 @@ def first_pass(lines):
         addr+=4
 
     return labels,instructions
- 
+
+# creating function that takes normal language of assembly instructions (like add x1, x2, x3) and breaks them down into a dictionary that a machine can eventualy translate into binary.
+
 def parse(instructions,labels):
+    out=[]
+    for ln,addr,text in instructions:
+        parts=text.split()
+        op=parts[0]
 
- out=[]
+        if op not in ft:
+            error(f"Line {ln}: Unknown instruction '{op}'")
 
- for ln,addr,text in instructions:
+        operands=[]
+        if len(parts)>1:
+            operands=" ".join(parts[1:]).split(",")
 
-  parts=text.split()
-  op=parts[0]
+        operands=[x.strip() for x in operands]
 
-  if op not in ft:
-   error(f"Line {ln}: Unknown instruction '{op}'")
+        ir={"mnemonic":op,"format":ft[op],"address":addr,"line":ln}
 
-  operands=[]
-  if len(parts)>1:
-   operands=" ".join(parts[1:]).split(",")
+        #for R TYPE
+        if ft[op]=="R":
 
-  operands=[x.strip() for x in operands]
+            if len(operands)!=3:
+                error(f"Line {ln}: '{op}' expects 3 operands")
 
-  ir={"mnemonic":op,"format":ft[op],"address":addr,"line":ln}
+            ir["rd"]=reg(operands[0],ln)
+            ir["rs1"]=reg(operands[1],ln)
+            ir["rs2"]=reg(operands[2],ln)
 
-  #for R TYPE
-  if ft[op]=="R":
+        #for I TYPE
+        elif ft[op]=="I":
 
-   if len(operands)!=3:
-    error(f"Line {ln}: '{op}' expects 3 operands")
+            if op=="lw":
 
-   ir["rd"]=reg(operands[0],ln)
-   ir["rs1"]=reg(operands[1],ln)
-   ir["rs2"]=reg(operands[2],ln)
+                if len(operands)!=2:
+                    error(f"Line {ln}: lw syntax is lw rd,imm(rs1)")
 
-  #for I TYPE
-  elif ft[op]=="I":
+                rd=reg(operands[0],ln)
+                p=operands[1]
 
-   if op=="lw":
+                off=p[:p.index("(")]
+                r=p[p.index("(")+1:-1]
 
-    if len(operands)!=2:
-     error(f"Line {ln}: lw syntax is lw rd,imm(rs1)")
+                im=imm(off)
+                check_range(im,12,ln)
 
-    rd=reg(operands[0],ln)
-    p=operands[1]
+                ir["rd"]=rd
+                ir["rs1"]=reg(r,ln)
+                ir["imm"]=im
 
-    off=p[:p.index("(")]
-    r=p[p.index("(")+1:-1]
+            else:
 
-    im=imm(off)
-    check_range(im,12,ln)
+                if len(operands)!=3:
+                    error(f"Line {ln}: '{op}' expects 3 operands")
 
-    ir["rd"]=rd
-    ir["rs1"]=reg(r,ln)
-    ir["imm"]=im
+                im=imm(operands[2])
+                check_range(im,12,ln)
 
-   else:
+                ir["rd"]=reg(operands[0],ln)
+                ir["rs1"]=reg(operands[1],ln)
+                ir["imm"]=im
 
-    if len(operands)!=3:
-     error(f"Line {ln}: '{op}' expects 3 operands")
+        #fro S TYPE
+        elif ft[op]=="S":
 
-    im=imm(operands[2])
-    check_range(im,12,ln)
+            if len(operands)!=2:
+                error(f"Line {ln}: sw syntax is sw rs2,imm(rs1)")
 
-    ir["rd"]=reg(operands[0],ln)
-    ir["rs1"]=reg(operands[1],ln)
-    ir["imm"]=im
+            rs2=reg(operands[0],ln)
 
-  #fro S TYPE
-  elif ft[op]=="S":
+            p=operands[1]
+            off=p[:p.index("(")]
+            r=p[p.index("(")+1:-1]
 
-   if len(operands)!=2:
-    error(f"Line {ln}: sw syntax is sw rs2,imm(rs1)")
+            im=imm(off)
+            check_range(im,12,ln)
 
-   rs2=reg(operands[0],ln)
+            ir["rs2"]=rs2
+            ir["rs1"]=reg(r,ln)
+            ir["imm"]=im
 
-   p=operands[1]
-   off=p[:p.index("(")]
-   r=p[p.index("(")+1:-1]
+        #for B TYPE
+        elif ft[op]=="B":
 
-   im=imm(off)
-   check_range(im,12,ln)
+            if len(operands)!=3:
+                error(f"Line {ln}: '{op}' expects 3 operands")
 
-   ir["rs2"]=rs2
-   ir["rs1"]=reg(r,ln)
-   ir["imm"]=im
+            ir["rs1"]=reg(operands[0],ln)
+            ir["rs2"]=reg(operands[1],ln)
 
-  #for B TYPE
-  elif ft[op]=="B":
+            t=operands[2]
 
-   if len(operands)!=3:
-    error(f"Line {ln}: '{op}' expects 3 operands")
+            if t in labels:
+                im=labels[t]-addr
+            else:
+                if t.isalpha():
+                    error(f"Line {ln}: Undefined label '{t}'")
+                im=imm(t)
 
-   ir["rs1"]=reg(operands[0],ln)
-   ir["rs2"]=reg(operands[1],ln)
+            if im%2!=0:
+                error(f"Line {ln}: Branch offset must be multiple of 2")
 
-   t=operands[2]
+            check_range(im,13,ln)
 
-   if t in labels:
-    im=labels[t]-addr
-   else:
-    if t.isalpha():
-     error(f"Line {ln}: Undefined label '{t}'")
-    im=imm(t)
+            ir["imm"]=im
 
-   if im%2!=0:
-    error(f"Line {ln}: Branch offset must be multiple of 2")
+        #for U TYPE
+        elif ft[op]=="U":
 
-   check_range(im,13,ln)
+            if len(operands)!=2:
+                error(f"Line {ln}: '{op}' expects 2 operands")
 
-   ir["imm"]=im
+            im=imm(operands[1])
+            check_range(im,20,ln)
 
-  #for U TYPE
-  elif ft[op]=="U":
+            ir["rd"]=reg(operands[0],ln)
+            ir["imm"]=im
 
-   if len(operands)!=2:
-    error(f"Line {ln}: '{op}' expects 2 operands")
+        #for J TYPE
+        elif ft[op]=="J":
 
-   im=imm(operands[1])
-   check_range(im,20,ln)
+            if len(operands)!=2:
+                error(f"Line {ln}: jal syntax is jal rd,label")
 
-   ir["rd"]=reg(operands[0],ln)
-   ir["imm"]=im
+            ir["rd"]=reg(operands[0],ln)
 
-  #for J TYPE
-  elif ft[op]=="J":
+            t=operands[1]
 
-   if len(operands)!=2:
-    error(f"Line {ln}: jal syntax is jal rd,label")
+            if t in labels:
+                im=labels[t]-addr
+            else:
+                if t.isalpha():
+                    error(f"Line {ln}: Undefined label '{t}'")
+                im=imm(t)
 
-   ir["rd"]=reg(operands[0],ln)
+            if im%2!=0:
+                error(f"Line {ln}: Jump offset must be multiple of 2")
 
-   t=operands[1]
+            check_range(im,21,ln)
 
-   if t in labels:
-    im=labels[t]-addr
-   else:
-    if t.isalpha():
-     error(f"Line {ln}: Undefined label '{t}'")
-    im=imm(t)
+            ir["imm"]=im
 
-   if im%2!=0:
-    error(f"Line {ln}: Jump offset must be multiple of 2")
+        out.append(ir)
 
-   check_range(im,21,ln)
+    return out
 
-   ir["imm"]=im
 
-  out.append(ir)
+#Creating function to return outputs by encoding respectively to the type of istruction
 
- return out
 def encode(ir):
     #this follow the general format as listed in the readme file in the assignment 
     m=ir["mnemonic"]
+
     if ir["format"]=="R":
         return (
         funct7[m]+
@@ -280,8 +298,11 @@ def encode(ir):
         binN(ir["rd"],5)+
         opcode["R"]
         )
+
     if ir["format"]=="I":
+
         op=opcode[m] if m in opcode else opcode["addi"]
+
         return (
         binN(ir["imm"],12)+
         binN(ir["rs1"],5)+
@@ -289,8 +310,11 @@ def encode(ir):
         binN(ir["rd"],5)+
         op
         )
+
     if ir["format"]=="S":
+
         imm=binN(ir["imm"],12)
+
         return (
         imm[:7]+
         binN(ir["rs2"],5)+
@@ -299,8 +323,11 @@ def encode(ir):
         imm[7:]+
         opcode["sw"]
         )
+
     if ir["format"]=="B":
+
         imm=binN(ir["imm"],13)
+
         return (
         imm[0]+
         imm[2:8]+
@@ -311,14 +338,19 @@ def encode(ir):
         imm[1]+
         opcode["B"]
         )
+
     if ir["format"]=="U":
+
         return (
         binN(ir["imm"],20)+
         binN(ir["rd"],5)+
         opcode[m]
         )
+
     if ir["format"]=="J":
+
         imm=binN(ir["imm"],21)
+
         return (
         imm[0]+
         imm[10:20]+
@@ -340,7 +372,7 @@ def assemble(input_file,output_file):
     #Prevents crashing on missing virtual halt
     last=parsed[-1]
     if not (last["mnemonic"]=="beq" and last["rs1"]==0 and last["rs2"]==0 and last["imm"]==0):
-        print(f"Warning: Missing Virtual Halt instruction. Found: {last}")				#error() function is not used so it doesn't crash the grader
+        print(f"Warning: Missing Virtual Halt instruction. Found: {last}")				
 
     with open(output_file,"w") as f:
         for ir in parsed:
@@ -348,7 +380,7 @@ def assemble(input_file,output_file):
             f.write(code+"\n")
 
 #making the main function
-if __name__=="_main_":
+if __name__=="__main__":
 	
     #The debugg print statement just in case
     print(f"DEBUGG - Arguments received: {sys.argv}")
@@ -361,4 +393,5 @@ if __name__=="_main_":
     input_file = sys.argv[1]
     output_file = sys.argv[2]
     
-    assemble(input_file, output_file)     
+    assemble(input_file, output_file)            
+
