@@ -48,3 +48,155 @@ funct7={
 "or":"0000000",
 "and":"0000000"
 }
+
+def bfN(value,bits):
+ if value < 0:
+  value=(1<<bits)+value
+ return format(value,"0{}b".format(bits))
+
+def parse(instructions,labels):
+
+ out=[]
+
+ for ln,addr,text in instructions:
+
+  parts=text.split()
+  op=parts[0]
+
+  if op not in ft:
+   error(f"Line {ln}: Unknown instruction '{op}'")
+
+  operands=[]
+  if len(parts)>1:
+   operands=" ".join(parts[1:]).split(",")
+
+  operands=[x.strip() for x in operands]
+
+  ir={"mnemonic":op,"format":ft[op],"address":addr,"line":ln}
+
+  #for R TYPE
+  if ft[op]=="R":
+
+   if len(operands)!=3:
+    error(f"Line {ln}: '{op}' expects 3 operands")
+
+   ir["rd"]=reg(operands[0],ln)
+   ir["rs1"]=reg(operands[1],ln)
+   ir["rs2"]=reg(operands[2],ln)
+
+  #for I TYPE
+  elif ft[op]=="I":
+
+   if op=="lw":
+
+    if len(operands)!=2:
+     error(f"Line {ln}: lw syntax is lw rd,imm(rs1)")
+
+    rd=reg(operands[0],ln)
+    p=operands[1]
+
+    off=p[:p.index("(")]
+    r=p[p.index("(")+1:-1]
+
+    im=imm(off)
+    check_range(im,12,ln)
+
+    ir["rd"]=rd
+    ir["rs1"]=reg(r,ln)
+    ir["imm"]=im
+
+   else:
+
+    if len(operands)!=3:
+     error(f"Line {ln}: '{op}' expects 3 operands")
+
+    im=imm(operands[2])
+    check_range(im,12,ln)
+
+    ir["rd"]=reg(operands[0],ln)
+    ir["rs1"]=reg(operands[1],ln)
+    ir["imm"]=im
+
+  #fro S TYPE
+  elif ft[op]=="S":
+
+   if len(operands)!=2:
+    error(f"Line {ln}: sw syntax is sw rs2,imm(rs1)")
+
+   rs2=reg(operands[0],ln)
+
+   p=operands[1]
+   off=p[:p.index("(")]
+   r=p[p.index("(")+1:-1]
+
+   im=imm(off)
+   check_range(im,12,ln)
+
+   ir["rs2"]=rs2
+   ir["rs1"]=reg(r,ln)
+   ir["imm"]=im
+
+  #for B TYPE
+  elif ft[op]=="B":
+
+   if len(operands)!=3:
+    error(f"Line {ln}: '{op}' expects 3 operands")
+
+   ir["rs1"]=reg(operands[0],ln)
+   ir["rs2"]=reg(operands[1],ln)
+
+   t=operands[2]
+
+   if t in labels:
+    im=labels[t]-addr
+   else:
+    if t.isalpha():
+     error(f"Line {ln}: Undefined label '{t}'")
+    im=imm(t)
+
+   if im%2!=0:
+    error(f"Line {ln}: Branch offset must be multiple of 2")
+
+   check_range(im,13,ln)
+
+   ir["imm"]=im
+
+  #for U TYPE
+  elif ft[op]=="U":
+
+   if len(operands)!=2:
+    error(f"Line {ln}: '{op}' expects 2 operands")
+
+   im=imm(operands[1])
+   check_range(im,20,ln)
+
+   ir["rd"]=reg(operands[0],ln)
+   ir["imm"]=im
+
+  #for J TYPE
+  elif ft[op]=="J":
+
+   if len(operands)!=2:
+    error(f"Line {ln}: jal syntax is jal rd,label")
+
+   ir["rd"]=reg(operands[0],ln)
+
+   t=operands[1]
+
+   if t in labels:
+    im=labels[t]-addr
+   else:
+    if t.isalpha():
+     error(f"Line {ln}: Undefined label '{t}'")
+    im=imm(t)
+
+   if im%2!=0:
+    error(f"Line {ln}: Jump offset must be multiple of 2")
+
+   check_range(im,21,ln)
+
+   ir["imm"]=im
+
+  out.append(ir)
+
+ return out
