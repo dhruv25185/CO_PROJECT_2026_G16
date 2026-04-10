@@ -295,6 +295,52 @@ def execute(decoded, registers, data_mem, stack_mem, PC):
 #Aryan's Part#
 
 #Astu's Part#
+#responsible for writing the output file 
+def run(program, outputfile):
+
+    PC=0
+    registers=[0]*32
+    registers[2] = 0x0000017C   # SP = top of stack memory
+    data_mem=[0]*32             # data memory:  0x10000 - 0x1007F
+    stack_mem=[0]*32            # stack memory: 0x00100 - 0x0017F
+
+    error_occurred = False
+    with open(outputfile,"w") as f:
+
+        while True:
+            if PC<0 or PC>=len(program)*4:
+                print(f"Error at instruction {(PC//4)+1}")
+                error_occurred = True
+                break
+
+            instruct=program[PC//4].strip()
+            decoded=decode(instruct)
+
+            if decoded.get("error"):
+                print(f"Error at instruction {(PC//4)+1}")
+                error_occurred = True
+                break
+
+            old_PC=PC
+            PC=execute(decoded, registers, data_mem, stack_mem, PC)
+            if PC is None:
+                error_occurred = True
+                break
+            registers[0] = 0
+            f.write(converttobin(PC))
+            for r in registers:
+                f.write(" "+converttobin(r))
+            f.write("\n")
+            if (decoded["mnemonic"] == "beq" and
+                decoded["rs1"] == 0 and
+                decoded["rs2"] == 0 and
+                decoded["imm"] == 0):
+                break
+
+        if not error_occurred:
+            for i in range(32):
+                addr = 0x00010000 + i*4
+                f.write(f"0x{addr:08X}:{converttobin(data_mem[i])}\n")
 #Astu's Part#
 
 #Nirney's Part#
