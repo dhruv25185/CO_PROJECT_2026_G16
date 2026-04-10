@@ -1,6 +1,181 @@
 #Dhruv's Part#
-#Dhruv's Part#
+import sys
+#converts input number to 32 bit binary no.
+def converttobin(x):
+    return "0b"+format(x & ((1<<32)-1), '032b')
 
+#takes the encoded binary file and reads the 32 bit instructions and returns them
+def loadprogram(filename):
+    with open(filename) as f:
+        return [line.strip() for line in f if line.strip()]
+    
+def tosignedbinary(x):
+    if x & (1 << 31):
+        return x - (1 << 32)
+    return x
+
+def signext(value, nbits):
+    if (value&(1<< (nbits - 1))):
+        value=value -(1<< nbits)
+    return value
+
+#the purpose of this function is to take the binary 32 bit string break it down and further segregate on the basis of opcode then accordingly
+#update values of registers 
+def decode(binaryinput):
+    if len(binaryinput)!=32:
+        return {"mnemonic":"UNKNOWN","format":"?","error":True}
+    opcode =  binaryinput[25:32]
+    if opcode =="0110011":
+        funct7=binaryinput[0:7]
+        rs2=int(binaryinput[7:12],2)
+        rs1 =int(binaryinput[12:17],2)
+        funct3=binaryinput[17:20]
+        rd=int(binaryinput[20:25], 2)
+        operator_codes ={
+            ("000","0000000"): "add",
+            ("000","0100000"): "sub",
+            ("001","0000000"): "sll",
+            ("010","0000000"): "slt",
+            ("011","0000000"): "sltu",
+            ("100","0000000"): "xor",
+            ("101","0000000"): "srl",
+            ("110","0000000"): "or",
+            ("111","0000000"): "and",
+        }
+        key= (funct3, funct7)
+        if key not in operator_codes:
+            return {"mnemonic":"UNKNOWN", "format":"R", "error":True}
+        return{
+            "format": "R",
+            "mnemonic": operator_codes[key],
+            "rs1": rs1,
+            "rd": rd,
+            "rs2": rs2
+        }
+    elif opcode =="0000011":
+        imm_raw= int(binaryinput[0:12],2)
+        funct3  = binaryinput[17:20]
+        rs1      = int(binaryinput[12:17], 2)
+        rd =int(binaryinput[20:25],2)
+        if funct3 != "010":
+            return {"mnemonic":"UNKNOWN", "format":"I", "error":True}
+        return{
+            "rd":rd,
+            "mnemonic":"lw",
+            "rs1":rs1,
+            "format":  "I",
+            "imm":signext(imm_raw, 12)
+        }
+    elif opcode =="0010011":
+        imm_raw= int(binaryinput[0:12], 2)
+        rs1= int(binaryinput[12:17], 2)
+        funct3= binaryinput[17:20]
+        rd= int(binaryinput[20:25], 2)
+        icodes={
+            "000":"addi",
+            "011": "sltiu",
+        }
+        if funct3 not in icodes:
+            return {"mnemonic":"UNKNOWN", "format":"I", "error":True}
+        return{
+            "rd": rd,
+            "format": "I",
+            "rs1": rs1,
+            "imm": signext(imm_raw, 12),
+            "mnemonic": icodes[funct3]
+        }
+    elif opcode =="1100111":
+        imm_raw =int(binaryinput[0:12],2)
+        rs1    = int(binaryinput[12:17], 2)
+        funct3=binaryinput[17:20]
+        rd=int(binaryinput[20:25],2)
+        if funct3 != "000":
+            return {"mnemonic":"UNKNOWN", "format":"I", "error":True}
+        return {
+            "mnemonic": "jalr",
+            "format": "I",
+            "rd": rd,
+            "imm": signext(imm_raw, 12),
+            "rs1": rs1
+        }
+    elif opcode== "0100011":
+        immu=binaryinput[0:7]
+        rs2=int(binaryinput[7:12], 2)
+        rs1=int(binaryinput[12:17], 2)
+        funct3=binaryinput[17:20]
+        imml=binaryinput[20:25]
+        if funct3 !="010":
+            return {"mnemonic":"UNKNOWN", "format":"S", "error":True}
+        imm_raw =int(immu + imml, 2)
+        return{
+            "mnemonic": "sw",
+            "rs1": rs1,
+            "rs2": rs2,
+            "imm": signext(imm_raw, 12),
+            "format": "S"
+        }
+    elif opcode == "1100011":
+        imm12=binaryinput[0]
+        imm10_5 =binaryinput[1:7]
+        rs2=int(binaryinput[7:12], 2)
+        rs1=int(binaryinput[12:17], 2)
+        funct3=binaryinput[17:20]
+        imm4_1=binaryinput[20:24]
+        imm11 =binaryinput[24]
+        imm_bin = imm12 + imm11 + imm10_5 + imm4_1 + "0"
+        imm_val=signext(int(imm_bin, 2), 13)
+        bcodes ={
+            "000":"beq",
+            "001": "bne",
+            "100":"blt",
+            "101":"bge",
+            "110" :"bltu",
+            "111":"bgeu",
+        }
+        if funct3 not in bcodes:
+            return {"mnemonic":"UNKNOWN", "format":"B", "error":True}
+        return {
+            "mnemonic": bcodes[funct3],
+            "rs1": rs1,
+            "format": "B",
+            "rs2": rs2,
+            "imm": imm_val
+        }
+    elif opcode =="0110111":
+        imm_raw=int(binaryinput[0:20],2)
+        rd =int(binaryinput[20:25],2)
+        return{
+            "format": "U",
+            "rd": rd,
+            "mnemonic": "lui",
+            "imm": signext(imm_raw, 20)*4096
+        }
+    elif opcode =="0010111":
+        imm_raw=int(binaryinput[0:20], 2)
+        rd=int(binaryinput[20:25], 2)
+        return{
+            "mnemonic": "auipc",
+            "rd": rd,
+            "imm": signext(imm_raw, 20)*4096,
+            "format": "U"
+        }
+    elif opcode =="1101111":
+        rd=int(binaryinput[20:25], 2)
+        imm20= binaryinput[0]
+        imm10_1= binaryinput[1:11]
+        imm11= binaryinput[11]
+        imm19_12 =binaryinput[12:20]
+        imm_bin =imm20 +imm19_12 +imm11 +imm10_1 +"0"
+        imm_val =signext(int(imm_bin, 2), 21)
+        return{
+            "mnemonic": "jal",
+            "format": "J",
+            "rd": rd,
+            "imm": imm_val
+        }
+    else:
+        return {"mnemonic":"UNKNOWN","format":"?","opcode":opcode,"error":True}
+#Dhruv's Part#
 #Aryan's Part#
 data_base  = 0x00010000   #data memory starts at this address
 stack_base = 0x00000100   #stack memory starts at this address
