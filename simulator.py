@@ -298,4 +298,17 @@ def execute(decoded, registers, data_mem, stack_mem, PC):
 #Astu's Part#
 
 #Nirney's Part#
+def main():
+    if len(sys.argv)<3:
+        print("Correct Format: python simulator.py input.txt output.txt")
+        sys.exit(1)
+
+    encodedfile=sys.argv[1]
+    outputfile=sys.argv[2]
+    print("\n") #just added this to make the output results less cramped up for test cases
+    program=loadprogram(encodedfile)
+    run(program, outputfile)
+
+if __name__=="__main__":
+    main()
 #Nirney's Part#
